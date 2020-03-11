@@ -55,7 +55,7 @@ class User private constructor(
         password: String
     ) : this(firstName, lastName, email = email, meta = mapOf("auth" to "password")) {
         println("Secondary email constructor")
-        passwordHash = encrycp(password)
+        passwordHash = encrypt(password)
         println("Email passwordHash is $passwordHash")
     }
 
@@ -67,7 +67,7 @@ class User private constructor(
     ) : this(firstName, lastName, rawPhone = rawPhone, meta = mapOf("auth" to "sms")) {
         println("Secondary phone constructor")
         val code = generateAccessCode()
-        passwordHash = encrycp(code)
+        passwordHash = encrypt(code)
         println("Phone passwordHash is $passwordHash")
         accessCode = code
         sendAccessCodeToUser(rawPhone, code)
@@ -94,19 +94,19 @@ class User private constructor(
         """.trimIndent()
     }
 
-    fun checkPassword(pass: String) = encrycp(pass) == passwordHash.also {
+    fun checkPassword(pass: String) = encrypt(pass) == passwordHash.also {
         println("Checking passwordHash is $passwordHash") }
 
     fun changePassword(oldPass: String, newPass: String) {
         if (checkPassword(oldPass)) {
-            passwordHash = encrycp(newPass)
+            passwordHash = encrypt(newPass)
             if (!accessCode.isNullOrEmpty()) accessCode = newPass
             println("Password $oldPass has been changed on new password $newPass")
         }
         else throw IllegalArgumentException("The entered password does not match the current password")
     }
 
-    private fun encrycp(password: String): String = salt.plus(password).md5()
+    private fun encrypt(password: String): String = salt.plus(password).md5()
 
     private fun String.md5(): String {
         val md = MessageDigest.getInstance("MD5")
