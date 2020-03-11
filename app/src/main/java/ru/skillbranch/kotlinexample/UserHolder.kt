@@ -26,6 +26,29 @@ object UserHolder {
             throw IllegalArgumentException("Enter a valid phone number starting with a + and containing 11 digits")
         }
 
+    fun importUsers(list: List<String>): List<User> {
+        val result = mutableListOf<User>()
+        for (csvString in list) {
+            val csvList = csvString.csvToList()
+            println("csvList: $csvList")
+            val fullName = csvList[0]
+            val email = csvList[1].ifBlank { null }
+            val saltAndHash = csvList[2]
+            val phone = csvList[3].ifBlank { null }
+            val user =
+                User.makeUser(fullName, email = email, phone = phone, saltAndHash = saltAndHash)
+            if (user.login !in map.keys) {
+                map[user.login] = user
+            }
+            else {
+                throw IllegalArgumentException("This user already exists")
+            }
+            println("User info:\n${user.userInfo}")
+            result.add(user)
+        }
+        return result
+    }
+
     fun loginUser(login: String, password: String): String? =
         map[login.trim().transformIfPhone()]?.let {
             if (it.checkPassword(password)) it.userInfo
@@ -51,6 +74,8 @@ object UserHolder {
 
     private fun validatePhone(rawPhone: String): Boolean =
         """^\+\d{11}""".toRegex().matches(rawPhone.replace("""[^+\d]""".toRegex(), ""))
+
+    private fun String.csvToList(): List<String> = this.split(";")
 
     @VisibleForTesting(otherwise = VisibleForTesting.NONE)
     fun clearHolder() {

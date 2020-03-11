@@ -38,9 +38,7 @@ class User private constructor(
         }
         get() = _login!!
 
-    private val salt: String by lazy {
-        ByteArray(16).also { SecureRandom().nextBytes(it) }.toString()
-    }
+    private var salt: String? = null
 
     private lateinit var passwordHash: String
 
@@ -73,6 +71,28 @@ class User private constructor(
         sendAccessCodeToUser(rawPhone, code)
     }
 
+    // For CSV
+    constructor(
+        firstName: String,
+        lastName: String?,
+        email: String?,
+        rawPhone: String?,
+        saltIn: String,
+        hash: String
+    ) : this(
+        firstName,
+        lastName,
+        email = email,
+        rawPhone = rawPhone,
+        meta = mapOf("src" to "csv")
+    ) {
+        println("Secondary CSV constructor")
+        salt = saltIn
+        passwordHash = hash
+        println("CSV salt is $salt")
+        println("CSV passwordHash is $passwordHash")
+    }
+
     init {
         println("First init block, primary constructor was called")
 
@@ -95,18 +115,24 @@ class User private constructor(
     }
 
     fun checkPassword(pass: String) = encrypt(pass) == passwordHash.also {
-        println("Checking passwordHash is $passwordHash") }
+        println("Checking passwordHash is $passwordHash")
+    }
 
     fun changePassword(oldPass: String, newPass: String) {
         if (checkPassword(oldPass)) {
             passwordHash = encrypt(newPass)
             if (!accessCode.isNullOrEmpty()) accessCode = newPass
             println("Password $oldPass has been changed on new password $newPass")
-        }
-        else throw IllegalArgumentException("The entered password does not match the current password")
+        } else throw IllegalArgumentException("The entered password does not match the current password")
     }
 
-    private fun encrypt(password: String): String = salt.plus(password).md5()
+    private fun encrypt(password: String): String {
+        if (salt.isNullOrEmpty()) {
+            salt = ByteArray(16).also { SecureRandom().nextBytes(it) }.toString()
+        }
+        println("Salt while encrypt: $salt")
+        return salt.plus(password).md5()
+    }
 
     private fun String.md5(): String {
         val md = MessageDigest.getInstance("MD5")
@@ -136,11 +162,22 @@ class User private constructor(
             fullName: String,
             email: String? = null,
             password: String? = null,
-            phone: String? = null
+            phone: String? = null,
+            saltAndHash: String? = null
         ): User {
             val (firstName, lastName) = fullName.fullNameToPair()
+            val salt = saltAndHash?.saltAndHashToPair()?.first
+            val hash = saltAndHash?.saltAndHashToPair()?.second
 
             return when {
+                !salt.isNullOrBlank() && !hash.isNullOrBlank() -> User(
+                    firstName,
+                    lastName,
+                    email,
+                    phone,
+                    salt,
+                    hash
+                )
                 !phone.isNullOrBlank() -> User(firstName, lastName, phone)
                 !email.isNullOrBlank() && !password.isNullOrBlank() -> User(
                     firstName,
@@ -165,5 +202,13 @@ class User private constructor(
                         )
                     }
                 }
+
+
+        private fun String?.saltAndHashToPair(): Pair<String?, String?>? =
+            if (!this.isNullOrEmpty()) {
+                this.split(":").run { first() to last() }
+            } else {
+                null to null
+            }
     }
 }
